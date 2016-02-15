@@ -639,7 +639,7 @@ class BlockStorageObject(StorageObject):
     # BlockStorageObject private stuff
 
     def __init__(self, name, dev=None, wwn=None, readonly=False,
-                 write_back=False):
+                 write_back=False, block_size=512):
         '''
         A BlockIOStorageObject can be instantiated in two ways:
             - B{Creation mode}: If I{dev} is specified, the underlying configFS
@@ -661,20 +661,24 @@ class BlockStorageObject(StorageObject):
         @type dev: string
         @param wwn: T10 WWN Unit Serial, will generate if None
         @type wwn: string
+        @param block_size: block_size to use. Supported: 512, 1024, 2048, 4096. Default: 512
+        @type block_size: int
         @return: A BlockIOStorageObject object.
         '''
 
         if dev is not None:
             super(BlockStorageObject, self).__init__(name, 'create')
+            if block_size not in [512, 1024, 2048, 4096]:
+                raise RTSLibError("Device %s: Unsupported block_size specified: %d" % dev, block_size)
             try:
-                self._configure(dev, wwn, readonly)
+                self._configure(dev, wwn, readonly, block_size)
             except:
                 self.delete()
                 raise
         else:
             super(BlockStorageObject, self).__init__(name, 'lookup')
 
-    def _configure(self, dev, wwn, readonly):
+    def _configure(self, dev, wwn, readonly, block_size):
         self._check_self()
         if get_blockdev_type(dev) != 0:
             raise RTSLibError("Device %s is not a TYPE_DISK block device" % dev)
@@ -685,6 +689,8 @@ class BlockStorageObject(StorageObject):
         self._control("udev_path=%s" % dev)
         self._control("readonly=%d" % readonly)
         self._enable()
+        self.set_attribute("block_size", block_size)
+        self._control("block_size=%d" % block_size)
 
         super(BlockStorageObject, self)._configure(wwn)
 
@@ -704,6 +710,10 @@ class BlockStorageObject(StorageObject):
         self._check_self()
         return bool(int(self.get_attribute("emulate_write_cache")))
 
+    def _get_block_size(self):
+        self._check_self()
+        return bool(int(self.get_attribute("block_size")))
+
     def _get_readonly(self):
         self._check_self()
         # 'readonly' not present before kernel 3.6
@@ -722,12 +732,15 @@ class BlockStorageObject(StorageObject):
             doc="Get the block device size")
     write_back = property(_get_wb_enabled,
             doc="True if write-back, False if write-through (write cache disabled)")
+    block_size = property(_get_block_size,
+            doc="Get the block device block_size")
     readonly = property(_get_readonly,
             doc="True if the device is read-only, False if read/write")
 
     def dump(self):
         d = super(BlockStorageObject, self).dump()
         d['write_back'] = self.write_back
+        d['block_size'] = self.block_size
         d['readonly'] = self.readonly
         d['wwn'] = self.wwn
         d['dev'] = self.udev_path
