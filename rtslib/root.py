@@ -29,7 +29,7 @@ from .tcm import so_mapping, StorageObject
 from .utils import RTSLibError, modprobe, mount_configfs
 from .utils import dict_remove, set_attributes
 
-default_save_file = "/etc/target/saveconfig.json"
+default_save_file = "/etc/rtslib-fb-target/saveconfig.json"
 
 class RTSRoot(CFSNode):
     '''
